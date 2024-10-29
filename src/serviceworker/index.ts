@@ -41,57 +41,60 @@ global.addEventListener("activate", (event) => {
 // have been spent trying to convince the type system that there's no actual conflict, but it has yet to work. Instead
 // of trying to make it do the thing, we force-cast to something close enough where we can (and ignore errors otherwise).
 global.addEventListener("fetch", (event: FetchEvent) => {
+    // Circles disabling event listener since clients don't support MSC3916 yet
+    return;
+
     // This is the authenticated media (MSC3916) check, proxying what was unauthenticated to the authenticated variants.
 
-    if (event.request.method !== "GET") {
-        return; // not important to us
-    }
+    // if (event.request.method !== "GET") {
+    //     return; // not important to us
+    // }
 
     // Note: ideally we'd keep the request headers etc, but in practice we can't even see those details.
     // See https://stackoverflow.com/a/59152482
-    let url = event.request.url;
+    // let url = event.request.url;
 
     // We only intercept v3 download and thumbnail requests as presumably everything else is deliberate.
     // For example, `/_matrix/media/unstable` or `/_matrix/media/v3/preview_url` are something well within
     // the control of the application, and appear to be choices made at a higher level than us.
-    if (!url.includes("/_matrix/media/v3/download") && !url.includes("/_matrix/media/v3/thumbnail")) {
-        return; // not a URL we care about
-    }
+    // if (!url.includes("/_matrix/media/v3/download") && !url.includes("/_matrix/media/v3/thumbnail")) {
+    //     return; // not a URL we care about
+    // }
 
     // We need to call respondWith synchronously, otherwise we may never execute properly. This means
     // later on we need to proxy the request through if it turns out the server doesn't support authentication.
-    event.respondWith(
-        (async (): Promise<Response> => {
-            let accessToken: string | undefined;
-            try {
-                // Figure out which homeserver we're communicating with
-                const csApi = url.substring(0, url.indexOf("/_matrix/media/v3"));
+    // event.respondWith(
+    //     (async (): Promise<Response> => {
+    //         let accessToken: string | undefined;
+    //         try {
+    //             // Figure out which homeserver we're communicating with
+    //             const csApi = url.substring(0, url.indexOf("/_matrix/media/v3"));
 
-                // Add jitter to reduce request spam, particularly to `/versions` on initial page load
-                await new Promise<void>((resolve) => setTimeout(() => resolve(), Math.random() * 10));
+    //             // Add jitter to reduce request spam, particularly to `/versions` on initial page load
+    //             await new Promise<void>((resolve) => setTimeout(() => resolve(), Math.random() * 10));
 
-                // Locate our access token, and populate the fetchConfig with the authentication header.
-                // @ts-expect-error - service worker types are not available. See 'fetch' event handler.
-                const client = await global.clients.get(event.clientId);
-                accessToken = await getAccessToken(client);
+    //             // Locate our access token, and populate the fetchConfig with the authentication header.
+    //             // @ts-expect-error - service worker types are not available. See 'fetch' event handler.
+    //             const client = await global.clients.get(event.clientId);
+    //             accessToken = await getAccessToken(client);
 
-                // Update or populate the server support map using a (usually) authenticated `/versions` call.
-                await tryUpdateServerSupportMap(csApi, accessToken);
+    //             // Update or populate the server support map using a (usually) authenticated `/versions` call.
+    //             await tryUpdateServerSupportMap(csApi, accessToken);
 
-                // If we have server support (and a means of authentication), rewrite the URL to use MSC3916 endpoints.
-                if (serverSupportMap[csApi].supportsAuthedMedia && accessToken) {
-                    url = url.replace(/\/media\/v3\/(.*)\//, "/client/v1/media/$1/");
-                } // else by default we make no changes
-            } catch (err) {
-                console.error("SW: Error in request rewrite.", err);
-            }
+    //             // If we have server support (and a means of authentication), rewrite the URL to use MSC3916 endpoints.
+    //             if (serverSupportMap[csApi].supportsAuthedMedia && accessToken) {
+    //                 url = url.replace(/\/media\/v3\/(.*)\//, "/client/v1/media/$1/");
+    //             } // else by default we make no changes
+    //         } catch (err) {
+    //             console.error("SW: Error in request rewrite.", err);
+    //         }
 
-            // Add authentication and send the request. We add authentication even if MSC3916 endpoints aren't
-            // being used to ensure patches like this work:
-            // https://github.com/matrix-org/synapse/commit/2390b66bf0ec3ff5ffb0c7333f3c9b239eeb92bb
-            return fetch(url, fetchConfigForToken(accessToken));
-        })(),
-    );
+    //         // Add authentication and send the request. We add authentication even if MSC3916 endpoints aren't
+    //         // being used to ensure patches like this work:
+    //         // https://github.com/matrix-org/synapse/commit/2390b66bf0ec3ff5ffb0c7333f3c9b239eeb92bb
+    //         return fetch(url, fetchConfigForToken(accessToken));
+    //     })(),
+    // );
 });
 
 async function tryUpdateServerSupportMap(clientApiUrl: string, accessToken?: string): Promise<void> {
